@@ -2,7 +2,7 @@ name: Build and test
 
 on:
   push:
-    branches: [main]
+    branches: [main, "ci/**"]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -12,16 +12,36 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Ubuntu GCC
+            os: ubuntu-latest
+            compiler: g++
+          - name: Windows MSVC
+            os: windows-latest
+            compiler: msvc
+          - name: macOS Clang
+            os: macos-latest
+            compiler: clang++
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Configure build
+      - name: Configure build (Unix)
+        if: runner.os != 'Windows'
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=${{ matrix.compiler }}
+
+      - name: Configure build (Windows)
+        if: runner.os == 'Windows'
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 
       - name: Compile
         run: cmake --build build --parallel 2
 
       - name: Run tests
-        run: ctest --test-dir build --output-on-failure
+        run: ctest --test-dir build --build-config Debug --output-on-failure
