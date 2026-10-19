@@ -15,13 +15,10 @@ void VirtualDisk::add_observer(IStorageObserver* observer) {
 std::size_t VirtualDisk::sector_size() const noexcept { return sector_size_; }
 std::size_t VirtualDisk::sector_count() const noexcept { return data_.size() / sector_size_; }
 
-bool VirtualDisk::read(std::size_t sector, std::vector<std::uint8_t>& out) {
+bool VirtualDisk::read(std::size_t sector, std::vector<std::uint8_t>& out) const {
     if (sector >= sector_count()) return false;
     const auto begin = data_.begin() + static_cast<std::ptrdiff_t>(sector * sector_size_);
     out.assign(begin, begin + static_cast<std::ptrdiff_t>(sector_size_));
-    notify(StorageOperation::Seek, sector, 0);
-    notify(StorageOperation::Read, sector, sector_size_);
-    notify(StorageOperation::Load, sector, sector_size_);
     return true;
 }
 
