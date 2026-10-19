@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
 
 project(CPMUniversalDevelopmentEnvironment
-    VERSION 0.1.0
+    VERSION 0.2.0
     DESCRIPTION "Clean-room CP/M-style emulation components"
     LANGUAGES CXX
 )
@@ -17,6 +17,9 @@ add_library(cpm22_core
     src/platform/cmos_rtc.cpp
     src/platform/linux_kernel_layer.cpp
     src/gui/linux_gui.cpp
+    src/cpu/cpu8080.cpp
+    src/cpm/cpm_machine.cpp
+    src/cpm/console.cpp
 )
 
 target_compile_features(cpm22_core PUBLIC cxx_std_23)
@@ -39,4 +42,8 @@ if(BUILD_TESTING)
     add_executable(test_cpm_audio tests/test_cpm_audio.cpp)
     target_link_libraries(test_cpm_audio PRIVATE cpm22_core)
     add_test(NAME cpm_audio_integration COMMAND test_cpm_audio)
+
+    add_executable(test_cpu8080 tests/test_cpu8080.cpp)
+    target_link_libraries(test_cpu8080 PRIVATE cpm22_core)
+    add_test(NAME cpu8080_regression COMMAND test_cpu8080)
 endif()
