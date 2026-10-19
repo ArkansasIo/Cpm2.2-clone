@@ -34,3 +34,5 @@ The documentation must not label a feature as implemented or verified merely bec
 ## File-level specification rule
 
 Every implementation file will be mapped to a specification page under `docs/file-specs/` during the documentation-first pass. Each page records path, purpose, status, public API, dependencies, tests, platform constraints, assets, and provenance.
+
+The current file-specification wave covers core, CPU, memory, CP/M, filesystem, devices, audio, GUI, desktop, SDK, platforms, firmware, updates, tests, and assets.
