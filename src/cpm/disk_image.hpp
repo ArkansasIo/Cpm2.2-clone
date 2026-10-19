@@ -18,6 +18,7 @@ public:
     bool save(const std::string& path) const;
     bool load(const std::string& path);
 
+    [[nodiscard]] const DiskParameterBlock& dpb() const noexcept { return dpb_; }
     [[nodiscard]] std::size_t sector_size() const noexcept { return disk_.sector_size(); }
     [[nodiscard]] std::size_t sector_count() const noexcept { return disk_.sector_count(); }
 
