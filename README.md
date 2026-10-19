@@ -1,23 +1,26 @@
 # CP/M Universal Development Environment
 
-A clean-room C++23 project exploring a CP/M 2.2-style emulator and portable retro-computing environment. The current implementation is a scaffold of storage, audio, platform abstractions, and GUI adapter components; full CPU/CCP/BDOS/BIOS execution compatibility is not yet claimed.
+A clean-room C++23 project for a CP/M 2.2-style emulator and portable retro-computing development environment.
 
-## Project identity
+> Compatibility is implemented incrementally from published behavior/specification material. This repository is not the historical Digital Research source tree.
 
-See [PROJECT_NAME.md](PROJECT_NAME.md) for the product ID, development name, and version metadata.
+## Architecture
 
-## Current components
+- **8080 CPU:** instruction execution and machine-state model.
+- **Memory:** 64 KiB address-space abstraction.
+- **BIOS:** host-independent cold/warm boot and console abstraction.
+- **BDOS:** initial console services with a clean service-dispatch API.
+- **Directory:** CP/M-style user area and 8.3 filename constraints.
+- **Storage:** virtual sector storage and storage-observer events.
+- **Audio:** event-driven retro audio and WAV output.
+- **GUI:** backend-neutral GUI plus optional SDL3 adapter.
+- **CLI:** `cpm22` development executable.
 
-- Virtual sector storage and storage-observer events: `src/devices/`
-- Event-driven retro audio and WAV output: `src/audio/`
-- CMOS/RTC register model and host architecture metadata: `src/platform/`
-- Backend-neutral GUI and optional SDL3 adapter: `src/gui/`
-- Clean-room boot protocol sketch: `boot/`
-- Architecture and subsystem specifications: `docs/specs/`
+See [`docs/CPM22_ARCHITECTURE.md`](docs/CPM22_ARCHITECTURE.md) for the subsystem model and compatibility roadmap.
 
-## Build and test
+## Build
 
-Prerequisites: CMake 3.20 or later and a C++23-capable compiler.
+Requirements: CMake 3.20+ and a C++23 compiler.
 
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
@@ -25,24 +28,23 @@ cmake --build build --parallel
 ctest --test-dir build --output-on-failure
 ```
 
-Optional SDL3 GUI adapter:
+Run the development shell:
+
+```bash
+./build/cpm22
+```
+
+Optional SDL3 frontend:
 
 ```bash
 cmake -S . -B build -DCPM22_ENABLE_SDL3=ON
 cmake --build build --parallel
 ```
 
-SDL3 must be installed with a CMake package configuration discoverable by `find_package(SDL3 CONFIG REQUIRED)`.
+## Compatibility roadmap
 
-GitHub Actions runs the same configure, build, and test sequence for pushes and pull requests. See [the workflow](.github/workflows/build.yml).
+The next major layers are FCB/file services, disk parameter blocks, deblocking, CCP command parsing, transient-program loading, boot-image generation, and expanded conformance tests. The repository currently provides the foundation for those layers rather than claiming full CP/M application compatibility.
 
-## Verification status
+## Project identity
 
-- The present CMake target compiles the source files listed in `CMakeLists.txt`.
-- The storage/audio integration test is registered with CTest.
-- CPU instruction execution, CCP, BDOS, BIOS, disk filesystem compatibility, and real boot-to-CCP operation remain future implementation/verification work.
-- See [Build and Verification Review](docs/BUILD_VERIFICATION_REVIEW.md) for the known scope and verification boundaries.
-
-## Clean-room and provenance policy
-
-This project aims to implement behavior from public technical specifications and independently authored code. It is not the historical CP/M source tree and should not be described as a complete replacement until compatibility has been implemented and tested.
+See [`PROJECT_NAME.md`](PROJECT_NAME.md) for product and version metadata.
