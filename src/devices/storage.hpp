@@ -28,7 +28,7 @@ public:
     [[nodiscard]] std::size_t sector_size() const noexcept;
     [[nodiscard]] std::size_t sector_count() const noexcept;
 
-    bool read(std::size_t sector, std::vector<std::uint8_t>& out);
+    bool read(std::size_t sector, std::vector<std::uint8_t>& out) const;
     bool write(std::size_t sector, const std::vector<std::uint8_t>& data);
 
 private:
