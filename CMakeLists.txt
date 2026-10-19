@@ -8,7 +8,7 @@ add_library(cpm22_core
     src/devices/storage.cpp src/platform/architecture.cpp src/platform/cmos_rtc.cpp
     src/platform/linux_kernel_layer.cpp src/gui/linux_gui.cpp src/cpu/cpu8080.cpp
     src/cpm/cpm_machine.cpp src/cpm/console.cpp src/cpm/directory.cpp src/cpm/bdos.cpp
-    src/cpm/bios.cpp src/cpm/fcb.cpp src/cpm/disk_image.cpp)
+    src/cpm/bios.cpp src/cpm/fcb.cpp src/cpm/disk_image.cpp src/cpm/cpm_filesystem.cpp)
 target_compile_features(cpm22_core PUBLIC cxx_std_23)
 target_include_directories(cpm22_core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_compile_definitions(cpm22_core PUBLIC CPM22_VERSION_MAJOR=0 CPM22_VERSION_MINOR=4)
@@ -46,4 +46,7 @@ if(BUILD_TESTING)
  add_executable(test_cpm_disk tests/test_cpm_disk.cpp)
  target_link_libraries(test_cpm_disk PRIVATE cpm22_core)
  add_test(NAME cpm_disk_image COMMAND test_cpm_disk)
+ add_executable(test_cpm_filesystem tests/test_cpm_filesystem.cpp)
+ target_link_libraries(test_cpm_filesystem PRIVATE cpm22_core)
+ add_test(NAME cpm_filesystem COMMAND test_cpm_filesystem)
 endif()
