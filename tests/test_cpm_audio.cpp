@@ -3,9 +3,10 @@
 #include "devices/storage.hpp"
 
 #include <cassert>
+#include <cstdint>
 #include <filesystem>
 #include <iostream>
-#include <string>
+#include <vector>
 
 using namespace cpm22;
 
@@ -15,15 +16,20 @@ int main() {
     audio::StorageAudioBridge bridge(audio_engine);
     disk.add_observer(&bridge);
 
-    std::array<std::uint8_t, 128> write_buffer{};
+    std::vector<std::uint8_t> write_buffer(128);
     for (std::size_t i = 0; i < write_buffer.size(); ++i)
         write_buffer[i] = static_cast<std::uint8_t>(i);
 
     assert(disk.write(0, write_buffer));
 
-    std::array<std::uint8_t, 128> read_buffer{};
+    std::vector<std::uint8_t> read_buffer;
     assert(disk.read(0, read_buffer));
     assert(read_buffer == write_buffer);
+
+    // Reject out-of-range sectors and payloads that exceed a sector.
+    assert(!disk.read(disk.sector_count(), read_buffer));
+    assert(!disk.write(disk.sector_count(), write_buffer));
+    assert(!disk.write(1, std::vector<std::uint8_t>(disk.sector_size() + 1, 0)));
 
     audio_engine.on_storage_event(audio::StorageEvent::Create);
     audio_engine.on_storage_event(audio::StorageEvent::Load);
