@@ -1,24 +1,16 @@
-# Build and Verification Status
+# Build and Verification Review
 
-## Current repository snapshot
+## Snapshot reviewed
+The main branch was inspected on 2026-10-19. The codebase is a clean-room C++23 CP/M-style emulator scaffold with storage, audio, CMOS/RTC, platform, and GUI components.
 
-The repository currently contains source files for storage, audio, CMOS/RTC, architecture metadata, GUI adapters, and a Linux-kernel integration boundary. It also includes one integration-style test source, `tests/test_cpm_audio.cpp`.
+## Findings and changes
+- Added a root CMake build definition with a portable C++23 core target and CTest registration.
+- Added a GitHub Actions workflow to configure, compile, and run tests on pushes, pull requests, and manual dispatches.
+- Updated the storage/audio integration test to use the declared `std::vector<std::uint8_t>` API instead of incompatible `std::array` arguments.
+- Added negative tests for out-of-range disk sectors and writes larger than one sector.
 
-## Important build-system finding
+## Verification boundaries
+The GitHub connector was used to inspect and commit files, but no build was executed in a runner during this task. The first GitHub Actions run is needed to establish whether all source files compile cleanly. If it fails, use its logs as the basis for the next fix.
 
-The inspected `main` tree does not contain a root `CMakeLists.txt` or any other recognized build configuration file. As a result, the documented CMake commands in the README cannot currently be run from this repository snapshot.
-
-## Test-source issues found during inspection
-
-The current storage API accepts `std::vector<std::uint8_t>` for reads and writes, while the test passes `std::array<std::uint8_t, 128>`. Those calls do not match the declared API and should be corrected before treating the test as buildable. The test also uses `std::array` without directly including `<array>`.
-
-## Recommended next verification steps
-
-1. Add a root CMake build that explicitly lists source files, declares C++23, and registers the integration test with CTest.
-2. Correct the test fixture to use the storage API's vector-based buffers (or deliberately expand the API to span-based buffers).
-3. Add focused tests for storage boundary handling, invalid geometry, CMOS register behavior, and Linux guest option validation.
-4. Add a CI workflow that configures, builds, and runs CTest on a clean Ubuntu runner.
-
-## Accuracy note
-
-This document records a source inspection only. No compilation or runtime tests are claimed to have passed.
+## Follow-up
+The current CMake target is intentionally limited to files currently present in the tree. CPU/CCP/BDOS/BIOS emulation and boot image execution are not represented by this initial build target; they must be implemented and tested separately before the repository can claim full CP/M execution compatibility.
