@@ -1,43 +1,48 @@
-# CP/M 2.2 Clone
+# CP/M Universal Development Environment
 
-Clean-room CP/M 2.2-style emulator architecture with a portable C++23 core, Z80 target, CCP/BDOS/BIOS layers, virtual storage, CMOS/RTC hardware, optional Linux guest integration, and event-driven retro audio.
+A clean-room C++23 project exploring a CP/M 2.2-style emulator and portable retro-computing environment. The current implementation is a scaffold of storage, audio, platform abstractions, and GUI adapter components; full CPU/CCP/BDOS/BIOS execution compatibility is not yet claimed.
 
-## Portable targets
+## Project identity
 
-The core is designed to build on Linux, Windows, macOS, and Android. Android is packaged as an APK through a thin JNI/native layer so the emulator core remains platform independent.
+See [PROJECT_NAME.md](PROJECT_NAME.md) for the product ID, development name, and version metadata.
 
-See `docs/portable-targets.md` for the APK architecture and size strategy.
+## Current components
 
-## Boot
+- Virtual sector storage and storage-observer events: `src/devices/`
+- Event-driven retro audio and WAV output: `src/audio/`
+- CMOS/RTC register model and host architecture metadata: `src/platform/`
+- Backend-neutral GUI and optional SDL3 adapter: `src/gui/`
+- Clean-room boot protocol sketch: `boot/`
+- Architecture and subsystem specifications: `docs/specs/`
 
-`boot/cpm_bootloader.asm` contains the original CP/M-style boot protocol used by the emulator. It selects and reads boot media through the emulator BIOS, reports failures, and transfers control to the CCP load address.
+## Build and test
 
-## CMOS/RTC
-
-`src/platform/cmos_rtc.*` provides a small CMOS/RTC register model suitable for emulation and persistence integration.
-
-## Linux option
-
-`src/platform/linux_kernel_layer.*` provides the integration boundary for an optional Linux guest. The repository does not falsely claim that a compatibility layer is the complete Linux kernel. A specific upstream Linux release can be added as a separately versioned/submodule guest source tree and boot image.
-
-## Storage audio
-
-CP/M storage operations drive the audio layer:
-
-```text
-CP/M operation -> BIOS/BDOS -> virtual disk -> StorageAudioBridge -> RetroAudioEngine
-                                                        |
-                                      retro carrier + Morse timing
-```
-
-Read, write, save, load, create, seek, printer, and error events can produce adjustable-frequency/noise retro audio with Morse-style dot/dash timing.
-
-## Build
+Prerequisites: CMake 3.20 or later and a C++23-capable compiler.
 
 ```bash
-cmake -S . -B build
-cmake --build build
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --parallel
 ctest --test-dir build --output-on-failure
 ```
 
-The implementation is an independent compatibility project and does not reproduce historical CP/M source code.
+Optional SDL3 GUI adapter:
+
+```bash
+cmake -S . -B build -DCPM22_ENABLE_SDL3=ON
+cmake --build build --parallel
+```
+
+SDL3 must be installed with a CMake package configuration discoverable by `find_package(SDL3 CONFIG REQUIRED)`.
+
+GitHub Actions runs the same configure, build, and test sequence for pushes and pull requests. See [the workflow](.github/workflows/build.yml).
+
+## Verification status
+
+- The present CMake target compiles the source files listed in `CMakeLists.txt`.
+- The storage/audio integration test is registered with CTest.
+- CPU instruction execution, CCP, BDOS, BIOS, disk filesystem compatibility, and real boot-to-CCP operation remain future implementation/verification work.
+- See [Build and Verification Review](docs/BUILD_VERIFICATION_REVIEW.md) for the known scope and verification boundaries.
+
+## Clean-room and provenance policy
+
+This project aims to implement behavior from public technical specifications and independently authored code. It is not the historical CP/M source tree and should not be described as a complete replacement until compatibility has been implemented and tested.
