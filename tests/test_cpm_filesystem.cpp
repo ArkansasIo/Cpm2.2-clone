@@ -42,10 +42,12 @@ int main() {
     assert(results.size() == 2);
     assert(results.front().filename() == "HELLO.TXT");
 
-    assert(fs.rename(fcb, cpm22::cpm::Fcb::from_string("WORLD.TXT", 0)));
-    assert(!fs.open(fcb));
     const auto renamed = cpm22::cpm::Fcb::from_string("WORLD.TXT", 0);
+    // FCB names are space padded, so compare the canonical 8.3 representation
+    // after every directory operation.
+    assert(fs.rename(fcb, renamed));
     assert(fs.open(renamed));
+    assert(!fs.open(fcb));
     assert(fs.remove(renamed));
     assert(!fs.open(renamed));
 
