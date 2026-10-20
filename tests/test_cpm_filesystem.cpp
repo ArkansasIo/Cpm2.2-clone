@@ -48,5 +48,15 @@ int main() {
     assert(fs.open(renamed));
     assert(fs.remove(renamed));
     assert(!fs.open(renamed));
+
+    // Rename rejects illegal CP/M 8.3 replacement names.
+    const auto plain = cpm22::cpm::Fcb::from_string("README.TXT", 0);
+    assert(fs.create(plain));
+    assert(!fs.rename(plain, cpm22::cpm::Fcb::from_string("TOO-LONG-NAME.TXT", 0)));
+    assert(!fs.rename(plain, cpm22::cpm::Fcb::from_string("README.LONG", 0)));
+    assert(fs.open(plain));
+    assert(fs.rename(plain, cpm22::cpm::Fcb::from_string("NOTES", 0)));
+    assert(!fs.open(plain));
+    assert(fs.open(cpm22::cpm::Fcb::from_string("NOTES", 0)));
     return 0;
 }
