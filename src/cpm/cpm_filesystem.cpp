@@ -317,42 +317,21 @@ bool CpmFilesystem::search(const Fcb& pattern, std::vector<Fcb>& results) const 
 bool CpmFilesystem::matches(const Fcb& pattern, const CpmDirectoryRecord& entry) {
     const auto candidate = to_fcb(entry);
     const auto field_matches = [](const auto& pattern_field, const auto& candidate_field) {
-        std::size_t p = 0;
-        std::size_t c = 0;
-        while (p < pattern_field.size()) {
-            const char token = pattern_field[p];
-            if (token == '*') {
-                // '*' matches any remaining characters in this fixed-width
-                // field, including no characters.
-                return true;
-            }
-            if (token == '?' ) {
-                if (c >= candidate_field.size() ||
-                    candidate_field[c] == ' ' || candidate_field[c] == '\\0') {
-                    return false;
-                }
-                ++p;
-                ++c;
+        for (std::size_t i = 0; i < pattern_field.size(); ++i) {
+            const char p = pattern_field[i];
+            const char c = candidate_field[i];
+
+            // Exact literal matches retain the normal CP/M field-padding
+            // behavior: a blank in the pattern is significant.
+            if (p == '?') {
+                if (c == ' ' || c == '\\0') return false;
                 continue;
             }
-            if (token == ' ' || token == '\\0') {
-                // Remaining pattern slots must be padding, and candidate
-                // characters beyond the current prefix must also be padding.
-                for (std::size_t i = p; i < pattern_field.size(); ++i) {
-                    if (pattern_field[i] != ' ' && pattern_field[i] != '\\0') return false;
-                }
-                for (std::size_t i = c; i < candidate_field.size(); ++i) {
-                    if (candidate_field[i] != ' ' && candidate_field[i] != '\\0') return false;
-                }
-                return true;
-            }
-            if (c >= candidate_field.size() ||
-                std::toupper(static_cast<unsigned char>(token)) !=
-                std::toupper(static_cast<unsigned char>(candidate_field[c]))) {
+            if (p != '*' &&
+                std::toupper(static_cast<unsigned char>(p)) !=
+                std::toupper(static_cast<unsigned char>(c))) {
                 return false;
             }
-            ++p;
-            ++c;
         }
         return true;
     };
