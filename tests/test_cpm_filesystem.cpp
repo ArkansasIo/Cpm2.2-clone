@@ -42,12 +42,13 @@ int main() {
     assert(results.size() == 2);
     assert(results.front().filename() == "HELLO.TXT");
 
+    // Copy the source name to a separate variable before renaming. The
+    // filesystem API treats FCBs as fixed-width fields, not C strings.
+    const auto original = cpm22::cpm::Fcb::from_string("HELLO.TXT", 0);
     const auto renamed = cpm22::cpm::Fcb::from_string("WORLD.TXT", 0);
-    // FCB names are space padded, so compare the canonical 8.3 representation
-    // after every directory operation.
-    assert(fs.rename(fcb, renamed));
+    assert(fs.rename(original, renamed));
     assert(fs.open(renamed));
-    assert(!fs.open(fcb));
+    assert(!fs.open(original));
     assert(fs.remove(renamed));
     assert(!fs.open(renamed));
 
