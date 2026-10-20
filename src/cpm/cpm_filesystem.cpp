@@ -132,28 +132,42 @@ bool CpmFilesystem::remove(const Fcb& fcb) {
     return found;
 }
 
+namespace {
+std::string trim_fcb_field(const auto& field) {
+    std::string value(field.begin(), field.end());
+    while (!value.empty() && (value.back() == ' ' || value.back() == '\\0')) {
+        value.pop_back();
+    }
+    return value;
+}
+
+bool exact_fcb_name_matches(const Fcb& fcb, const CpmDirectoryRecord& entry) {
+    std::string entry_name = entry.name;
+    std::string entry_ext = entry.extension;
+    while (!entry_name.empty() && entry_name.back() == ' ') entry_name.pop_back();
+    while (!entry_ext.empty() && entry_ext.back() == ' ') entry_ext.pop_back();
+    return trim_fcb_field(fcb.name) == entry_name &&
+           trim_fcb_field(fcb.extension) == entry_ext;
+}
+}
+
 bool CpmFilesystem::rename(const Fcb& old_fcb, const Fcb& new_fcb) {
     std::vector<CpmDirectoryRecord> entries;
     if (!read_directory(entries)) return false;
 
-    const auto replacement = new_fcb.filename();
-    const auto dot = replacement.find('.');
-    const auto base_name = replacement.substr(0, dot);
-    const auto extension =
-        dot == std::string::npos ? std::string{} : replacement.substr(dot + 1);
-
-    // Enforce CP/M 8.3 bounds instead of writing oversized values into the
-    // fixed-width directory entry.
-    if (base_name.empty() || base_name.size() > 8 || extension.size() > 3) {
+    const auto replacement_name = trim_fcb_field(new_fcb.name);
+    const auto replacement_ext = trim_fcb_field(new_fcb.extension);
+    if (replacement_name.empty() || replacement_name.size() > 8 ||
+        replacement_ext.size() > 3 ||
+        replacement_name.find_first_of("*?") != std::string::npos ||
+        replacement_ext.find_first_of("*?") != std::string::npos) {
         return false;
     }
 
-    // Locate the source first. A rename to the same canonical name is a
-    // successful no-op; otherwise reject an existing destination.
     std::size_t source_index = entries.size();
     for (std::size_t i = 0; i < entries.size(); ++i) {
         if (entries[i].user != kUnused && entries[i].user == old_fcb.user &&
-            matches(old_fcb, entries[i])) {
+            exact_fcb_name_matches(old_fcb, entries[i])) {
             source_index = i;
             break;
         }
@@ -161,16 +175,16 @@ bool CpmFilesystem::rename(const Fcb& old_fcb, const Fcb& new_fcb) {
     if (source_index == entries.size()) return false;
 
     for (std::size_t i = 0; i < entries.size(); ++i) {
-        const auto& entry = entries[i];
-        if (i != source_index && entry.user != kUnused &&
-            entry.user == new_fcb.user && matches(new_fcb, entry)) {
+        if (i != source_index && entries[i].user != kUnused &&
+            entries[i].user == new_fcb.user &&
+            exact_fcb_name_matches(new_fcb, entries[i])) {
             return false;
         }
     }
 
     auto& source = entries[source_index];
-    source.name = base_name;
-    source.extension = extension;
+    source.name = replacement_name;
+    source.extension = replacement_ext;
     return save_entry(source_index, source);
 }
 
