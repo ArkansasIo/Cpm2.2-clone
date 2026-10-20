@@ -48,7 +48,7 @@ int main() {
     const auto renamed = cpm22::cpm::Fcb::from_string("WORLD.TXT", 0);
     assert(fs.rename(original, renamed));
     assert(fs.open(renamed));
-    assert(!fs.open(original));
+    assert(!fs.open(cpm22::cpm::Fcb::from_string("HELLO.TXT", 0)));
     assert(fs.remove(renamed));
     assert(!fs.open(renamed));
 
