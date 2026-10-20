@@ -26,6 +26,18 @@ std::size_t extent_record_count(const CpmDirectoryRecord& entry) noexcept {
 }
 }
 
+namespace {
+
+bool exact_fcb_name_matches(const Fcb& fcb, const CpmDirectoryRecord& entry) {
+    std::string entry_name = entry.name;
+    std::string entry_ext = entry.extension;
+    while (!entry_name.empty() && entry_name.back() == ' ') entry_name.pop_back();
+    while (!entry_ext.empty() && entry_ext.back() == ' ') entry_ext.pop_back();
+    return trim_local_field(fcb.name) == entry_name &&
+           trim_local_field(fcb.extension) == entry_ext;
+}
+}
+
 CpmFilesystem::CpmFilesystem(DiskImage& disk) : disk_(disk) {}
 
 std::size_t CpmFilesystem::directory_sector_count() const noexcept {
@@ -153,17 +165,6 @@ bool CpmFilesystem::remove(const Fcb& fcb) {
     return found;
 }
 
-namespace {
-
-bool exact_fcb_name_matches(const Fcb& fcb, const CpmDirectoryRecord& entry) {
-    std::string entry_name = entry.name;
-    std::string entry_ext = entry.extension;
-    while (!entry_name.empty() && entry_name.back() == ' ') entry_name.pop_back();
-    while (!entry_ext.empty() && entry_ext.back() == ' ') entry_ext.pop_back();
-    return trim_local_field(fcb.name) == entry_name &&
-           trim_local_field(fcb.extension) == entry_ext;
-}
-}
 
 bool CpmFilesystem::rename(const Fcb& old_fcb, const Fcb& new_fcb) {
     std::vector<CpmDirectoryRecord> entries;
