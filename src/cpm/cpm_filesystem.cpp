@@ -8,7 +8,13 @@ namespace cpm22::cpm {
 namespace {
 constexpr std::size_t kRecordSize = 128;
 constexpr std::size_t kDirectoryEntrySize = 32;
+constexpr std::size_t kRecordsPerExtent = 128;
 constexpr std::uint8_t kUnused = 0xE5;
+
+std::size_t extent_record_count(std::uint8_t record_count) noexcept {
+    // CP/M stores 128 records as RC=0 because RC is an 8-bit field.
+    return record_count == 0 ? kRecordsPerExtent : record_count;
+}
 }
 
 CpmFilesystem::CpmFilesystem(DiskImage& disk) : disk_(disk) {}
@@ -183,12 +189,12 @@ std::size_t CpmFilesystem::free_block_count() const {
 bool CpmFilesystem::read_record(const Fcb& fcb, std::size_t record, std::vector<std::uint8_t>& out) const {
     std::vector<CpmDirectoryRecord> entries;
     if (!read_directory(entries)) return false;
-    const std::size_t target_extent = record / 128;
-    const std::size_t within = record % 128;
+    const std::size_t target_extent = record / kRecordsPerExtent;
+    const std::size_t within = record % kRecordsPerExtent;
     for (std::size_t i = 0; i < entries.size(); ++i) {
         const auto& e = entries[i];
         if (e.user == fcb.user && e.user != kUnused && matches(fcb, e) && extent_number(e) == target_extent) {
-            if (within >= e.record_count) return false;
+            if (within >= extent_record_count(e.record_count)) return false;
             return read_record_bytes(i, within, out);
         }
     }
@@ -199,26 +205,54 @@ bool CpmFilesystem::write_record(const Fcb& fcb, std::size_t record, const std::
     if (data.size() > kRecordSize) return false;
     std::vector<CpmDirectoryRecord> entries;
     if (!read_directory(entries)) return false;
+    const std::size_t target_extent = record / kRecordsPerExtent;
     std::size_t index = entries.size();
-    for (std::size_t i = 0; i < entries.size(); ++i) if (entries[i].user != kUnused && entries[i].user == fcb.user && matches(fcb, entries[i]) && extent_number(entries[i]) == record / 128) { index = i; break; }
+    for (std::size_t i = 0; i < entries.size(); ++i) {
+        if (entries[i].user != kUnused && entries[i].user == fcb.user && matches(fcb, entries[i]) && extent_number(entries[i]) == target_extent) {
+            index = i;
+            break;
+        }
+    }
     if (index == entries.size()) {
-        if (!create(fcb)) return false;
-        if (!read_directory(entries)) return false;
-        for (std::size_t i = 0; i < entries.size(); ++i) if (entries[i].user != kUnused && entries[i].user == fcb.user && matches(fcb, entries[i]) && extent_number(entries[i]) == record / 128) { index = i; break; }
+        // A CP/M file can span multiple directory extents. Do not call create()
+        // here because create() correctly rejects an already-existing filename.
+        for (std::size_t i = 0; i < entries.size(); ++i) {
+            if (entries[i].user == kUnused) {
+                CpmDirectoryRecord e;
+                e.user = fcb.user;
+                e.name = fcb.filename();
+                const auto dot = e.name.find('.');
+                if (dot != std::string::npos) {
+                    e.extension = e.name.substr(dot + 1);
+                    e.name.resize(dot);
+                }
+                e.extent = static_cast<std::uint8_t>(target_extent & 0xFFu);
+                e.s2 = static_cast<std::uint8_t>((target_extent >> 5) & 0xFFu);
+                e.allocation.assign(16, 0);
+                if (!save_entry(i, e)) return false;
+                index = i;
+                break;
+            }
+        }
         if (index == entries.size()) return false;
+        if (!read_directory(entries)) return false;
     }
     auto& e = entries[index];
-    const std::size_t within = record % 128;
-    const std::size_t block_slot = within / (dpb().block_size() / kRecordSize);
+    const std::size_t within = record % kRecordsPerExtent;
+    const std::size_t records_per_block = dpb().block_size() / kRecordSize;
+    if (records_per_block == 0) return false;
+    const std::size_t block_slot = within / records_per_block;
     if (block_slot >= 16) return false;
     if (e.allocation[block_slot] == 0) {
         std::size_t block = 0;
-        if (!allocate_block(block)) return false;
+        if (!allocate_block(block) || block > 0xFFu) return false;
         e.allocation[block_slot] = static_cast<std::uint8_t>(block);
         if (!save_entry(index, e)) return false;
     }
     if (!write_record_bytes(index, within, data)) return false;
-    if (within + 1 > e.record_count) e.record_count = static_cast<std::uint8_t>(within + 1);
+    if (within + 1 > extent_record_count(e.record_count)) {
+        e.record_count = static_cast<std::uint8_t>(within + 1);
+    }
     return save_entry(index, e);
 }
 
