@@ -11,9 +11,12 @@ constexpr std::size_t kDirectoryEntrySize = 32;
 constexpr std::size_t kRecordsPerExtent = 128;
 constexpr std::uint8_t kUnused = 0xE5;
 
-std::size_t extent_record_count(std::uint8_t record_count) noexcept {
-    // CP/M stores 128 records as RC=0 because RC is an 8-bit field.
-    return record_count == 0 ? kRecordsPerExtent : record_count;
+std::size_t extent_record_count(const CpmDirectoryRecord& entry) noexcept {
+    if (entry.record_count != 0) return entry.record_count;
+    for (const auto block : entry.allocation) {
+        if (block != 0) return kRecordsPerExtent;
+    }
+    return 0;
 }
 }
 
@@ -194,7 +197,7 @@ bool CpmFilesystem::read_record(const Fcb& fcb, std::size_t record, std::vector<
     for (std::size_t i = 0; i < entries.size(); ++i) {
         const auto& e = entries[i];
         if (e.user == fcb.user && e.user != kUnused && matches(fcb, e) && extent_number(e) == target_extent) {
-            if (within >= extent_record_count(e.record_count)) return false;
+            if (within >= extent_record_count(e)) return false;
             return read_record_bytes(i, within, out);
         }
     }
@@ -214,8 +217,6 @@ bool CpmFilesystem::write_record(const Fcb& fcb, std::size_t record, const std::
         }
     }
     if (index == entries.size()) {
-        // A CP/M file can span multiple directory extents. Do not call create()
-        // here because create() correctly rejects an already-existing filename.
         for (std::size_t i = 0; i < entries.size(); ++i) {
             if (entries[i].user == kUnused) {
                 CpmDirectoryRecord e;
@@ -250,9 +251,10 @@ bool CpmFilesystem::write_record(const Fcb& fcb, std::size_t record, const std::
         if (!save_entry(index, e)) return false;
     }
     if (!write_record_bytes(index, within, data)) return false;
-    if (within + 1 > extent_record_count(e.record_count)) {
-        e.record_count = static_cast<std::uint8_t>(within + 1);
-    }
+
+    const std::size_t current_records = extent_record_count(e);
+    const std::size_t new_records = std::max(current_records, within + 1);
+    e.record_count = new_records >= kRecordsPerExtent ? 0 : static_cast<std::uint8_t>(new_records);
     return save_entry(index, e);
 }
 
