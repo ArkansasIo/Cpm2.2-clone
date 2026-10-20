@@ -56,8 +56,7 @@ bool CpmFilesystem::load_entry(std::size_t index, CpmDirectoryRecord& entry) con
     entry.s1 = sector[offset + 13];
     entry.s2 = sector[offset + 14];
     entry.record_count = sector[offset + 15];
-    entry.allocation.assign(sector.begin() + static_cast<std::ptrdiff_t>(offset + 16),
-                            sector.begin() + static_cast<std::ptrdiff_t>(offset + 32));
+    entry.allocation.assign(sector.begin() + static_cast<std::ptrdiff_t>(offset + 16), sector.begin() + static_cast<std::ptrdiff_t>(offset + 32));
     return true;
 }
 
@@ -130,9 +129,10 @@ bool CpmFilesystem::rename(const Fcb& old_fcb, const Fcb& new_fcb) {
     for (const auto& e : entries) if (e.user != kUnused && e.user == new_fcb.user && matches(new_fcb, e)) return false;
     for (std::size_t i = 0; i < entries.size(); ++i) {
         if (entries[i].user != kUnused && entries[i].user == old_fcb.user && matches(old_fcb, entries[i])) {
-            auto replacement = to_fcb(new_fcb);
-            entries[i].name.assign(replacement.name.begin(), replacement.name.end());
-            entries[i].extension.assign(replacement.extension.begin(), replacement.extension.end());
+            const auto filename = new_fcb.filename();
+            const auto dot = filename.find('.');
+            entries[i].name = dot == std::string::npos ? filename : filename.substr(0, dot);
+            entries[i].extension = dot == std::string::npos ? std::string{} : filename.substr(dot + 1);
             return save_entry(i, entries[i]);
         }
     }
