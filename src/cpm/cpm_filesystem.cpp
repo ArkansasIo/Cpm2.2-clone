@@ -316,40 +316,46 @@ bool CpmFilesystem::search(const Fcb& pattern, std::vector<Fcb>& results) const 
 
 bool CpmFilesystem::matches(const Fcb& pattern, const CpmDirectoryRecord& entry) {
     const auto candidate = to_fcb(entry);
-    const auto field_matches = [](const auto& pattern_field, const auto& candidate_field) {
-        std::size_t i = 0;
-        while (i < pattern_field.size()) {
-            const char p = pattern_field[i];
-            const char c = candidate_field[i];
 
-            if (p == '*') {
-                // '*' matches zero or more characters in the remaining field.
-                return true;
-            }
-            if (p == '?') {
-                if (c == ' ' || c == '\\0') return false;
-                ++i;
-                continue;
-            }
-            if (p == ' ' || p == '\\0') {
-                // The remaining pattern is blank padding. The candidate must
-                // also contain only padding from this position onward.
-                for (std::size_t j = i; j < candidate_field.size(); ++j) {
-                    if (candidate_field[j] != ' ' && candidate_field[j] != '\\0') return false;
-                }
-                return true;
-            }
-            if (std::toupper(static_cast<unsigned char>(p)) !=
-                std::toupper(static_cast<unsigned char>(c))) {
+    // Convert each field to its canonical, trimmed representation. Literal
+    // FCB matching is exact; wildcard fields are matched as glob patterns.
+    const auto trim_field = [](const auto& field) {
+        std::string value(field.begin(), field.end());
+        while (!value.empty() && (value.back() == ' ' || value.back() == '\\0')) {
+            value.pop_back();
+        }
+        return value;
+    };
+    const auto glob_match = [](const std::string& pattern_value, const std::string& candidate_value) {
+        std::size_t p = 0;
+        std::size_t c = 0;
+        std::size_t star = std::string::npos;
+        std::size_t retry = 0;
+
+        while (c < candidate_value.size()) {
+            if (p < pattern_value.size() &&
+                (pattern_value[p] == '?' ||
+                 std::toupper(static_cast<unsigned char>(pattern_value[p])) ==
+                 std::toupper(static_cast<unsigned char>(candidate_value[c])))) {
+                ++p;
+                ++c;
+            } else if (p < pattern_value.size() && pattern_value[p] == '*') {
+                star = p++;
+                retry = c;
+            } else if (star != std::string::npos) {
+                p = star + 1;
+                c = ++retry;
+            } else {
                 return false;
             }
-            ++i;
         }
-        return true;
+
+        while (p < pattern_value.size() && pattern_value[p] == '*') ++p;
+        return p == pattern_value.size();
     };
 
-    return field_matches(pattern.name, candidate.name) &&
-           field_matches(pattern.extension, candidate.extension);
+    return glob_match(trim_field(pattern.name), trim_field(candidate.name)) &&
+           glob_match(trim_field(pattern.extension), trim_field(candidate.extension));
 }
 
 Fcb CpmFilesystem::to_fcb(const CpmDirectoryRecord& entry) {
