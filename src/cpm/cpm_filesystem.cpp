@@ -175,10 +175,12 @@ bool CpmFilesystem::rename(const Fcb& old_fcb, const Fcb& new_fcb) {
         while (!value.empty() && (value.back() == ' ' || value.back() == '\0')) value.pop_back();
         return value;
     };
+    // Validate the complete replacement name before any directory writes.
+    // The FCB fields are fixed-width, so parsing has already truncated long
+    // source strings; validation here enforces the representable 8.3 form.
     const auto replacement_name = trim_field(new_fcb.name);
     const auto replacement_ext = trim_field(new_fcb.extension);
-    if (replacement_name.empty() || replacement_name.size() > 8 ||
-        replacement_ext.size() > 3 ||
+    if (replacement_name.empty() || replacement_ext.size() > 3 ||
         replacement_name.find_first_of("*?") != std::string::npos ||
         replacement_ext.find_first_of("*?") != std::string::npos) {
         return false;
