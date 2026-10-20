@@ -321,14 +321,23 @@ bool CpmFilesystem::matches(const Fcb& pattern, const CpmDirectoryRecord& entry)
             const char p = pattern_field[i];
             const char c = candidate_field[i];
 
-            // Exact literal matches retain the normal CP/M field-padding
-            // behavior: a blank in the pattern is significant.
+            if (p == '*') {
+                // An asterisk matches the rest of this 8.3 field.
+                return true;
+            }
             if (p == '?') {
                 if (c == ' ' || c == '\\0') return false;
                 continue;
             }
-            if (p != '*' &&
-                std::toupper(static_cast<unsigned char>(p)) !=
+            if (p == ' ' || p == '\\0') {
+                // Literal names are blank-padded; remaining candidate bytes
+                // must also be padding to avoid prefix matches.
+                for (std::size_t j = i; j < candidate_field.size(); ++j) {
+                    if (candidate_field[j] != ' ' && candidate_field[j] != '\\0') return false;
+                }
+                return true;
+            }
+            if (std::toupper(static_cast<unsigned char>(p)) !=
                 std::toupper(static_cast<unsigned char>(c))) {
                 return false;
             }
