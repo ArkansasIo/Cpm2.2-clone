@@ -20,7 +20,10 @@ Fcb Bdos::read_fcb(std::uint16_t address) const {
     for (std::size_t i=0;i<f.name.size();++i) f.name[i]=static_cast<char>(memory_.read(address+1+i));
     for (std::size_t i=0;i<f.extension.size();++i) f.extension[i]=static_cast<char>(memory_.read(address+9+i));
     f.extent=memory_.read(address+12); f.reserved=memory_.read(address+13); f.record_count=memory_.read(address+15);
-    for (std::size_t i=0;i<f.allocation.size();++i) f.allocation[i]=memory_.read(address+16+i); return f;
+    for (std::size_t i = 0; i < f.allocation.size(); ++i) {
+        f.allocation[i] = memory_.read(address + 16 + i);
+    }
+    return f;
 }
 
 void Bdos::write_fcb(std::uint16_t address,const Fcb& fcb) {
