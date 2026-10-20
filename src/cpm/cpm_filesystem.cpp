@@ -174,12 +174,6 @@ bool CpmFilesystem::rename(const Fcb& old_fcb, const Fcb& new_fcb) {
         return false;
     }
 
-    // Fcb::from_string truncates to 8.3 fields, so recover the original
-    // destination spelling from filename() is not possible. For invalid
-    // oversized names, FCB input should be rejected when any field is filled
-    // to its maximum and was truncated. The public FCB API cannot distinguish
-    // a valid 8-character field from a longer string after truncation.
-    // Here we at least reject malformed wildcard destinations.
     std::vector<std::size_t> source_indices;
     for (std::size_t i = 0; i < entries.size(); ++i) {
         if (entries[i].user != kUnused && entries[i].user == old_fcb.user &&
