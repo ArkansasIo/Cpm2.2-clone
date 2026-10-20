@@ -8,7 +8,34 @@ namespace cpm22::cpm {
 namespace {
 constexpr std::size_t kRecordSize = 128;
 constexpr std::size_t kDirectoryEntrySize = 32;
+constexpr std::size_t kRecordsPerExtent = 128;
 constexpr std::uint8_t kUnused = 0xE5;
+
+std::string trim_local_field(const auto& field) {
+    std::string value(field.begin(), field.end());
+    while (!value.empty() && (value.back() == ' ' || value.back() == '\0')) value.pop_back();
+    return value;
+}
+
+std::size_t extent_record_count(const CpmDirectoryRecord& entry) noexcept {
+    if (entry.record_count != 0) return entry.record_count;
+    for (const auto block : entry.allocation) {
+        if (block != 0) return kRecordsPerExtent;
+    }
+    return 0;
+}
+}
+
+namespace {
+
+bool exact_fcb_name_matches(const Fcb& fcb, const CpmDirectoryRecord& entry) {
+    std::string entry_name = entry.name;
+    std::string entry_ext = entry.extension;
+    while (!entry_name.empty() && entry_name.back() == ' ') entry_name.pop_back();
+    while (!entry_ext.empty() && entry_ext.back() == ' ') entry_ext.pop_back();
+    return trim_local_field(fcb.name) == entry_name &&
+           trim_local_field(fcb.extension) == entry_ext;
+}
 }
 
 CpmFilesystem::CpmFilesystem(DiskImage& disk) : disk_(disk) {}
@@ -56,8 +83,7 @@ bool CpmFilesystem::load_entry(std::size_t index, CpmDirectoryRecord& entry) con
     entry.s1 = sector[offset + 13];
     entry.s2 = sector[offset + 14];
     entry.record_count = sector[offset + 15];
-    entry.allocation.assign(sector.begin() + static_cast<std::ptrdiff_t>(offset + 16),
-                            sector.begin() + static_cast<std::ptrdiff_t>(offset + 32));
+    entry.allocation.assign(sector.begin() + static_cast<std::ptrdiff_t>(offset + 16), sector.begin() + static_cast<std::ptrdiff_t>(offset + 32));
     return true;
 }
 
@@ -102,9 +128,19 @@ bool CpmFilesystem::create(const Fcb& fcb) {
 bool CpmFilesystem::open(const Fcb& fcb, Fcb* opened) const {
     std::vector<CpmDirectoryRecord> entries;
     if (!read_directory(entries)) return false;
-    for (const auto& e : entries) {
-        if (e.user != kUnused && e.user == fcb.user && matches(fcb, e)) {
-            if (opened) *opened = to_fcb(e);
+
+    const auto requested_name = trim_local_field(fcb.name);
+    const auto requested_ext = trim_local_field(fcb.extension);
+
+    // Opening requires a concrete name, unlike search which accepts wildcards.
+    for (const auto& entry : entries) {
+        if (entry.user == kUnused || entry.user != fcb.user) continue;
+        std::string entry_name = entry.name;
+        std::string entry_ext = entry.extension;
+        while (!entry_name.empty() && (entry_name.back() == ' ' || entry_name.back() == '\0')) entry_name.pop_back();
+        while (!entry_ext.empty() && (entry_ext.back() == ' ' || entry_ext.back() == '\0')) entry_ext.pop_back();
+        if (requested_name == entry_name && requested_ext == entry_ext) {
+            if (opened) *opened = to_fcb(entry);
             return true;
         }
     }
@@ -124,19 +160,50 @@ bool CpmFilesystem::remove(const Fcb& fcb) {
     return found;
 }
 
+
 bool CpmFilesystem::rename(const Fcb& old_fcb, const Fcb& new_fcb) {
     std::vector<CpmDirectoryRecord> entries;
     if (!read_directory(entries)) return false;
-    for (const auto& e : entries) if (e.user != kUnused && e.user == new_fcb.user && matches(new_fcb, e)) return false;
+
+    if (!Fcb::is_valid_filename(new_fcb.filename())) return false;
+
+    const auto replacement_name = trim_local_field(new_fcb.name);
+    const auto replacement_ext = trim_local_field(new_fcb.extension);
+    if (replacement_name.empty() || replacement_name.size() > 8 ||
+        replacement_ext.size() > 3 ||
+        replacement_name.find_first_of("*?") != std::string::npos ||
+        replacement_ext.find_first_of("*?") != std::string::npos) {
+        return false;
+    }
+
+    std::vector<std::size_t> source_indices;
     for (std::size_t i = 0; i < entries.size(); ++i) {
-        if (entries[i].user != kUnused && entries[i].user == old_fcb.user && matches(old_fcb, entries[i])) {
-            auto replacement = to_fcb(new_fcb);
-            entries[i].name.assign(replacement.name.begin(), replacement.name.end());
-            entries[i].extension.assign(replacement.extension.begin(), replacement.extension.end());
-            return save_entry(i, entries[i]);
+        if (entries[i].user != kUnused && entries[i].user == old_fcb.user &&
+            exact_fcb_name_matches(old_fcb, entries[i])) {
+            source_indices.push_back(i);
         }
     }
-    return false;
+    if (source_indices.empty()) return false;
+
+    const auto is_source = [&source_indices](std::size_t index) {
+        return std::find(source_indices.begin(), source_indices.end(), index) != source_indices.end();
+    };
+    for (std::size_t i = 0; i < entries.size(); ++i) {
+        if (is_source(i) || entries[i].user == kUnused || entries[i].user != new_fcb.user) continue;
+        std::string entry_name = entries[i].name;
+        std::string entry_ext = entries[i].extension;
+        while (!entry_name.empty() && (entry_name.back() == ' ' || entry_name.back() == '\0')) entry_name.pop_back();
+        while (!entry_ext.empty() && (entry_ext.back() == ' ' || entry_ext.back() == '\0')) entry_ext.pop_back();
+        if (entry_name == replacement_name && entry_ext == replacement_ext) return false;
+    }
+
+    for (const auto index : source_indices) {
+        auto& source = entries[index];
+        source.name = replacement_name;
+        source.extension = replacement_ext;
+        if (!save_entry(index, source)) return false;
+    }
+    return true;
 }
 
 bool CpmFilesystem::clear_entry(std::size_t index) {
@@ -183,12 +250,12 @@ std::size_t CpmFilesystem::free_block_count() const {
 bool CpmFilesystem::read_record(const Fcb& fcb, std::size_t record, std::vector<std::uint8_t>& out) const {
     std::vector<CpmDirectoryRecord> entries;
     if (!read_directory(entries)) return false;
-    const std::size_t target_extent = record / 128;
-    const std::size_t within = record % 128;
+    const std::size_t target_extent = record / kRecordsPerExtent;
+    const std::size_t within = record % kRecordsPerExtent;
     for (std::size_t i = 0; i < entries.size(); ++i) {
         const auto& e = entries[i];
         if (e.user == fcb.user && e.user != kUnused && matches(fcb, e) && extent_number(e) == target_extent) {
-            if (within >= e.record_count) return false;
+            if (within >= extent_record_count(e)) return false;
             return read_record_bytes(i, within, out);
         }
     }
@@ -199,26 +266,53 @@ bool CpmFilesystem::write_record(const Fcb& fcb, std::size_t record, const std::
     if (data.size() > kRecordSize) return false;
     std::vector<CpmDirectoryRecord> entries;
     if (!read_directory(entries)) return false;
+    const std::size_t target_extent = record / kRecordsPerExtent;
     std::size_t index = entries.size();
-    for (std::size_t i = 0; i < entries.size(); ++i) if (entries[i].user != kUnused && entries[i].user == fcb.user && matches(fcb, entries[i]) && extent_number(entries[i]) == record / 128) { index = i; break; }
+    for (std::size_t i = 0; i < entries.size(); ++i) {
+        if (entries[i].user != kUnused && entries[i].user == fcb.user && matches(fcb, entries[i]) && extent_number(entries[i]) == target_extent) {
+            index = i;
+            break;
+        }
+    }
     if (index == entries.size()) {
-        if (!create(fcb)) return false;
-        if (!read_directory(entries)) return false;
-        for (std::size_t i = 0; i < entries.size(); ++i) if (entries[i].user != kUnused && entries[i].user == fcb.user && matches(fcb, entries[i]) && extent_number(entries[i]) == record / 128) { index = i; break; }
+        for (std::size_t i = 0; i < entries.size(); ++i) {
+            if (entries[i].user == kUnused) {
+                CpmDirectoryRecord e;
+                e.user = fcb.user;
+                e.name = fcb.filename();
+                const auto dot = e.name.find('.');
+                if (dot != std::string::npos) {
+                    e.extension = e.name.substr(dot + 1);
+                    e.name.resize(dot);
+                }
+                e.extent = static_cast<std::uint8_t>(target_extent & 0xFFu);
+                e.s2 = static_cast<std::uint8_t>((target_extent >> 5) & 0xFFu);
+                e.allocation.assign(16, 0);
+                if (!save_entry(i, e)) return false;
+                index = i;
+                break;
+            }
+        }
         if (index == entries.size()) return false;
+        if (!read_directory(entries)) return false;
     }
     auto& e = entries[index];
-    const std::size_t within = record % 128;
-    const std::size_t block_slot = within / (dpb().block_size() / kRecordSize);
+    const std::size_t within = record % kRecordsPerExtent;
+    const std::size_t records_per_block = dpb().block_size() / kRecordSize;
+    if (records_per_block == 0) return false;
+    const std::size_t block_slot = within / records_per_block;
     if (block_slot >= 16) return false;
     if (e.allocation[block_slot] == 0) {
         std::size_t block = 0;
-        if (!allocate_block(block)) return false;
+        if (!allocate_block(block) || block > 0xFFu) return false;
         e.allocation[block_slot] = static_cast<std::uint8_t>(block);
         if (!save_entry(index, e)) return false;
     }
     if (!write_record_bytes(index, within, data)) return false;
-    if (within + 1 > e.record_count) e.record_count = static_cast<std::uint8_t>(within + 1);
+
+    const std::size_t current_records = extent_record_count(e);
+    const std::size_t new_records = std::max(current_records, within + 1);
+    e.record_count = new_records >= kRecordsPerExtent ? 0 : static_cast<std::uint8_t>(new_records);
     return save_entry(index, e);
 }
 
@@ -254,18 +348,64 @@ bool CpmFilesystem::search(const Fcb& pattern, std::vector<Fcb>& results) const 
 
 bool CpmFilesystem::matches(const Fcb& pattern, const CpmDirectoryRecord& entry) {
     const auto candidate = to_fcb(entry);
-    auto match = [](const auto& p, const auto& c) {
-        for (std::size_t i = 0; i < p.size(); ++i) if (p[i] != '?' && p[i] != '*' && std::toupper(static_cast<unsigned char>(p[i])) != std::toupper(static_cast<unsigned char>(c[i]))) return false;
-        return true;
+
+    // Convert each field to its canonical, trimmed representation. Literal
+    // FCB matching is exact; wildcard fields are matched as glob patterns.
+    const auto trim_field = [](const auto& field) {
+        std::string value(field.begin(), field.end());
+        while (!value.empty() && (value.back() == ' ' || value.back() == '\0')) {
+            value.pop_back();
+        }
+        return value;
     };
-    return match(pattern.name, candidate.name) && match(pattern.extension, candidate.extension);
+    const auto glob_match = [](const std::string& pattern_value, const std::string& candidate_value) {
+        std::size_t p = 0;
+        std::size_t c = 0;
+        std::size_t star = std::string::npos;
+        std::size_t retry = 0;
+
+        while (c < candidate_value.size()) {
+            if (p < pattern_value.size() &&
+                (pattern_value[p] == '?' ||
+                 std::toupper(static_cast<unsigned char>(pattern_value[p])) ==
+                 std::toupper(static_cast<unsigned char>(candidate_value[c])))) {
+                ++p;
+                ++c;
+            } else if (p < pattern_value.size() && pattern_value[p] == '*') {
+                star = p++;
+                retry = c;
+            } else if (star != std::string::npos) {
+                p = star + 1;
+                c = ++retry;
+            } else {
+                return false;
+            }
+        }
+
+        while (p < pattern_value.size() && pattern_value[p] == '*') ++p;
+        return p == pattern_value.size();
+    };
+
+    return glob_match(trim_field(pattern.name), trim_field(candidate.name)) &&
+           glob_match(trim_field(pattern.extension), trim_field(candidate.extension));
 }
 
 Fcb CpmFilesystem::to_fcb(const CpmDirectoryRecord& entry) {
-    Fcb f; f.user = entry.user;
-    for (std::size_t i = 0; i < 8 && i < entry.name.size(); ++i) f.name[i] = entry.name[i];
-    for (std::size_t i = 0; i < 3 && i < entry.extension.size(); ++i) f.extension[i] = entry.extension[i];
-    f.extent = entry.extent; f.record_count = entry.record_count;
+    Fcb f;
+    f.user = entry.user;
+    // The CP/M on-disk entry stores eight name bytes and three extension
+    // bytes without a terminator. Convert them into canonical space-padded
+    // FCB fields before exposing them to matching and API callers.
+    f.name.fill(' ');
+    f.extension.fill(' ');
+    for (std::size_t i = 0; i < f.name.size() && i < entry.name.size(); ++i) {
+        f.name[i] = entry.name[i];
+    }
+    for (std::size_t i = 0; i < f.extension.size() && i < entry.extension.size(); ++i) {
+        f.extension[i] = entry.extension[i];
+    }
+    f.extent = entry.extent;
+    f.record_count = entry.record_count;
     return f;
 }
 

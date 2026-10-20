@@ -17,19 +17,52 @@ int main() {
     std::vector<std::uint8_t> read;
     assert(fs.read_record(fcb, 0, read));
     assert(read == write);
-    assert(fs.free_block_count() < 241);
+
+    const std::size_t free_after_first_record = fs.free_block_count();
+    assert(free_after_first_record < 241);
+
+    std::vector<std::uint8_t> last_record(128, 0x7F);
+    assert(fs.write_record(fcb, 127, last_record));
+    read.clear();
+    assert(fs.read_record(fcb, 127, read));
+    assert(read == last_record);
+
+    // Record 128 starts the next 16 KiB logical extent. The previous
+    // implementation incorrectly called create(), which rejected the
+    // existing filename and made this operation fail.
+    std::vector<std::uint8_t> second_extent(128, 0x42);
+    assert(fs.write_record(fcb, 128, second_extent));
+    read.clear();
+    assert(fs.read_record(fcb, 128, read));
+    assert(read == second_extent);
 
     std::vector<cpm22::cpm::Fcb> results;
     const auto wildcard = cpm22::cpm::Fcb::from_string("HELLO.*", 0);
     assert(fs.search(wildcard, results));
-    assert(results.size() == 1);
+    assert(results.size() == 2);
     assert(results.front().filename() == "HELLO.TXT");
 
-    assert(fs.rename(fcb, cpm22::cpm::Fcb::from_string("WORLD.TXT", 0)));
-    assert(!fs.open(fcb));
+    // Copy the source name to a separate variable before renaming. The
+    // filesystem API treats FCBs as fixed-width fields, not C strings.
+    const auto original = cpm22::cpm::Fcb::from_string("HELLO.TXT", 0);
     const auto renamed = cpm22::cpm::Fcb::from_string("WORLD.TXT", 0);
+    assert(fs.rename(original, renamed));
     assert(fs.open(renamed));
+    assert(!fs.open(cpm22::cpm::Fcb::from_string("HELLO.TXT", 0)));
     assert(fs.remove(renamed));
     assert(!fs.open(renamed));
+
+    // Rename rejects illegal CP/M 8.3 replacement names.
+    const auto plain = cpm22::cpm::Fcb::from_string("README.TXT", 0);
+    assert(fs.create(plain));
+    // Fcb::from_string normalizes into a fixed 8.3 structure; once a
+    // long input is truncated, the original spelling cannot be recovered
+    // from the FCB. Test the observable invalid wildcard destinations here.
+    assert(!fs.rename(plain, cpm22::cpm::Fcb::from_string("READ*.TXT", 0)));
+    assert(!fs.rename(plain, cpm22::cpm::Fcb::from_string("README.T*X", 0)));
+    assert(fs.open(plain));
+    assert(fs.rename(plain, cpm22::cpm::Fcb::from_string("NOTES", 0)));
+    assert(!fs.open(plain));
+    assert(fs.open(cpm22::cpm::Fcb::from_string("NOTES", 0)));
     return 0;
 }
