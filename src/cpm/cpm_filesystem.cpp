@@ -168,6 +168,9 @@ bool CpmFilesystem::rename(const Fcb& old_fcb, const Fcb& new_fcb) {
     std::vector<CpmDirectoryRecord> entries;
     if (!read_directory(entries)) return false;
 
+    // FCB::from_string stores values in fixed-width fields. Reject overlong
+    // source strings before the parser truncates them, and validate the
+    // canonical replacement fields before touching any directory entries.
     const auto replacement_name = trim_fcb_field(new_fcb.name);
     const auto replacement_ext = trim_fcb_field(new_fcb.extension);
     if (replacement_name.empty() || replacement_name.size() > 8 ||
