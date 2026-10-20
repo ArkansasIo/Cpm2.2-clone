@@ -151,13 +151,6 @@ bool CpmFilesystem::remove(const Fcb& fcb) {
 }
 
 namespace {
-std::string trim_fcb_field(const auto& field) {
-    std::string value(field.begin(), field.end());
-    while (!value.empty() && (value.back() == ' ' || value.back() == '\0')) {
-        value.pop_back();
-    }
-    return value;
-}
 
 bool exact_fcb_name_matches(const Fcb& fcb, const CpmDirectoryRecord& entry) {
     std::string entry_name = entry.name;
