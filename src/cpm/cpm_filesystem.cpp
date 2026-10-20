@@ -316,11 +316,44 @@ bool CpmFilesystem::search(const Fcb& pattern, std::vector<Fcb>& results) const 
 
 bool CpmFilesystem::matches(const Fcb& pattern, const CpmDirectoryRecord& entry) {
     const auto candidate = to_fcb(entry);
-    auto match = [](const auto& p, const auto& c) {
-        for (std::size_t i = 0; i < p.size(); ++i) if (p[i] != '?' && p[i] != '*' && std::toupper(static_cast<unsigned char>(p[i])) != std::toupper(static_cast<unsigned char>(c[i]))) return false;
-        return true;
+    const auto field_matches = [](const auto& pattern_field, const auto& candidate_field) {
+        bool wildcard = false;
+        for (std::size_t i = 0; i < pattern_field.size(); ++i) {
+            const char p = pattern_field[i];
+            const char c = candidate_field[i];
+
+            if (p == '*') {
+                // CP/M '*' matches the rest of this field, including blank
+                // padding. It is not a literal character stored in a name.
+                wildcard = true;
+                break;
+            }
+            if (p == '?') {
+                if (c == ' ' || c == '\\0') return false;
+                continue;
+            }
+            if (p == ' ' || p == '\\0') {
+                // Once the pattern reaches blank padding, the candidate must
+                // also be padded. This prevents short names from prefix
+                // matching longer names such as FOO and FOOBA.
+                for (std::size_t j = i; j < pattern_field.size(); ++j) {
+                    if (pattern_field[j] != ' ' && pattern_field[j] != '\\0') return false;
+                }
+                for (std::size_t j = i; j < candidate_field.size(); ++j) {
+                    if (candidate_field[j] != ' ' && candidate_field[j] != '\\0') return false;
+                }
+                return true;
+            }
+            if (std::toupper(static_cast<unsigned char>(p)) !=
+                std::toupper(static_cast<unsigned char>(c))) {
+                return false;
+            }
+        }
+        return wildcard || true;
     };
-    return match(pattern.name, candidate.name) && match(pattern.extension, candidate.extension);
+
+    return field_matches(pattern.name, candidate.name) &&
+           field_matches(pattern.extension, candidate.extension);
 }
 
 Fcb CpmFilesystem::to_fcb(const CpmDirectoryRecord& entry) {
