@@ -317,21 +317,23 @@ bool CpmFilesystem::search(const Fcb& pattern, std::vector<Fcb>& results) const 
 bool CpmFilesystem::matches(const Fcb& pattern, const CpmDirectoryRecord& entry) {
     const auto candidate = to_fcb(entry);
     const auto field_matches = [](const auto& pattern_field, const auto& candidate_field) {
-        for (std::size_t i = 0; i < pattern_field.size(); ++i) {
+        std::size_t i = 0;
+        while (i < pattern_field.size()) {
             const char p = pattern_field[i];
             const char c = candidate_field[i];
 
             if (p == '*') {
-                // An asterisk matches the rest of this 8.3 field.
+                // '*' matches zero or more characters in the remaining field.
                 return true;
             }
             if (p == '?') {
                 if (c == ' ' || c == '\\0') return false;
+                ++i;
                 continue;
             }
             if (p == ' ' || p == '\\0') {
-                // Literal names are blank-padded; remaining candidate bytes
-                // must also be padding to avoid prefix matches.
+                // The remaining pattern is blank padding. The candidate must
+                // also contain only padding from this position onward.
                 for (std::size_t j = i; j < candidate_field.size(); ++j) {
                     if (candidate_field[j] != ' ' && candidate_field[j] != '\\0') return false;
                 }
@@ -341,6 +343,7 @@ bool CpmFilesystem::matches(const Fcb& pattern, const CpmDirectoryRecord& entry)
                 std::toupper(static_cast<unsigned char>(c))) {
                 return false;
             }
+            ++i;
         }
         return true;
     };
