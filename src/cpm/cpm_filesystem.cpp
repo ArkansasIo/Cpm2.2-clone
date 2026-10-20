@@ -353,10 +353,21 @@ bool CpmFilesystem::matches(const Fcb& pattern, const CpmDirectoryRecord& entry)
 }
 
 Fcb CpmFilesystem::to_fcb(const CpmDirectoryRecord& entry) {
-    Fcb f; f.user = entry.user;
-    for (std::size_t i = 0; i < 8 && i < entry.name.size(); ++i) f.name[i] = entry.name[i];
-    for (std::size_t i = 0; i < 3 && i < entry.extension.size(); ++i) f.extension[i] = entry.extension[i];
-    f.extent = entry.extent; f.record_count = entry.record_count;
+    Fcb f;
+    f.user = entry.user;
+    // The CP/M on-disk entry stores eight name bytes and three extension
+    // bytes without a terminator. Convert them into canonical space-padded
+    // FCB fields before exposing them to matching and API callers.
+    f.name.fill(' ');
+    f.extension.fill(' ');
+    for (std::size_t i = 0; i < f.name.size() && i < entry.name.size(); ++i) {
+        f.name[i] = entry.name[i];
+    }
+    for (std::size_t i = 0; i < f.extension.size() && i < entry.extension.size(); ++i) {
+        f.extension[i] = entry.extension[i];
+    }
+    f.extent = entry.extent;
+    f.record_count = entry.record_count;
     return f;
 }
 
