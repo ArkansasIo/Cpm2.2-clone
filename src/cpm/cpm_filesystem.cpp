@@ -165,25 +165,21 @@ bool CpmFilesystem::rename(const Fcb& old_fcb, const Fcb& new_fcb) {
     std::vector<CpmDirectoryRecord> entries;
     if (!read_directory(entries)) return false;
 
-    const auto trim_field = [](const auto& field) {
-        std::string value(field.begin(), field.end());
-        while (!value.empty() && (value.back() == ' ' || value.back() == '\0')) value.pop_back();
-        return value;
-    };
-    // Validate the complete replacement name before any directory writes.
-    // The FCB fields are fixed-width, so parsing has already truncated long
-    // source strings; validation here enforces the representable 8.3 form.
-    const auto replacement_name = trim_field(new_fcb.name);
-    const auto replacement_ext = trim_field(new_fcb.extension);
-    if (replacement_name.empty() || replacement_ext.size() > 3 ||
+    const auto replacement_name = trim_local_field(new_fcb.name);
+    const auto replacement_ext = trim_local_field(new_fcb.extension);
+    if (replacement_name.empty() || replacement_name.size() > 8 ||
+        replacement_ext.size() > 3 ||
         replacement_name.find_first_of("*?") != std::string::npos ||
         replacement_ext.find_first_of("*?") != std::string::npos) {
         return false;
     }
 
-    // A multi-extent file uses multiple directory entries with the same 8.3
-    // name. Rename every entry so later extents do not remain under the old
-    // filename.
+    // Fcb::from_string truncates to 8.3 fields, so recover the original
+    // destination spelling from filename() is not possible. For invalid
+    // oversized names, FCB input should be rejected when any field is filled
+    // to its maximum and was truncated. The public FCB API cannot distinguish
+    // a valid 8-character field from a longer string after truncation.
+    // Here we at least reject malformed wildcard destinations.
     std::vector<std::size_t> source_indices;
     for (std::size_t i = 0; i < entries.size(); ++i) {
         if (entries[i].user != kUnused && entries[i].user == old_fcb.user &&
@@ -197,10 +193,7 @@ bool CpmFilesystem::rename(const Fcb& old_fcb, const Fcb& new_fcb) {
         return std::find(source_indices.begin(), source_indices.end(), index) != source_indices.end();
     };
     for (std::size_t i = 0; i < entries.size(); ++i) {
-        if (is_source(i) || entries[i].user == kUnused ||
-            entries[i].user != new_fcb.user) {
-            continue;
-        }
+        if (is_source(i) || entries[i].user == kUnused || entries[i].user != new_fcb.user) continue;
         std::string entry_name = entries[i].name;
         std::string entry_ext = entries[i].extension;
         while (!entry_name.empty() && (entry_name.back() == ' ' || entry_name.back() == '\0')) entry_name.pop_back();
