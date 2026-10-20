@@ -165,6 +165,8 @@ bool CpmFilesystem::rename(const Fcb& old_fcb, const Fcb& new_fcb) {
     std::vector<CpmDirectoryRecord> entries;
     if (!read_directory(entries)) return false;
 
+    if (!Fcb::is_valid_filename(new_fcb.filename())) return false;
+
     const auto replacement_name = trim_local_field(new_fcb.name);
     const auto replacement_ext = trim_local_field(new_fcb.extension);
     if (replacement_name.empty() || replacement_name.size() > 8 ||
