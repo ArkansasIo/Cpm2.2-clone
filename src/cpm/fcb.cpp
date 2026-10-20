@@ -34,7 +34,6 @@ Fcb Fcb::from_string(const std::string& value, std::uint8_t user_id) {
     parse_field(e, f.extension);
     return f;
 }
-}
 
 std::string Fcb::filename() const {
     std::string n, e;
