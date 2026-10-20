@@ -12,6 +12,7 @@ struct Fcb {
     std::uint8_t record_count = 0;
     std::array<std::uint8_t,16> allocation{};
     static Fcb from_string(const std::string& value, std::uint8_t user=0);
+    [[nodiscard]] static bool is_valid_filename(const std::string& value) noexcept;
     [[nodiscard]] std::string filename() const;
 };
 }
