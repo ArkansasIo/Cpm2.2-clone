@@ -129,13 +129,8 @@ bool CpmFilesystem::open(const Fcb& fcb, Fcb* opened) const {
     std::vector<CpmDirectoryRecord> entries;
     if (!read_directory(entries)) return false;
 
-    const auto trim = [](const auto& field) {
-        std::string value(field.begin(), field.end());
-        while (!value.empty() && (value.back() == ' ' || value.back() == '\0')) value.pop_back();
-        return value;
-    };
-    const auto requested_name = trim(fcb.name);
-    const auto requested_ext = trim(fcb.extension);
+    const auto requested_name = trim_local_field(fcb.name);
+    const auto requested_ext = trim_local_field(fcb.extension);
 
     // Opening requires a concrete name, unlike search which accepts wildcards.
     for (const auto& entry : entries) {
