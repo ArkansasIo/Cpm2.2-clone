@@ -55,8 +55,11 @@ int main() {
     // Rename rejects illegal CP/M 8.3 replacement names.
     const auto plain = cpm22::cpm::Fcb::from_string("README.TXT", 0);
     assert(fs.create(plain));
-    assert(!fs.rename(plain, cpm22::cpm::Fcb::from_string("TOO-LONG-NAME.TXT", 0)));
-    assert(!fs.rename(plain, cpm22::cpm::Fcb::from_string("README.LONG", 0)));
+    // Fcb::from_string normalizes into a fixed 8.3 structure; once a
+    // long input is truncated, the original spelling cannot be recovered
+    // from the FCB. Test the observable invalid wildcard destinations here.
+    assert(!fs.rename(plain, cpm22::cpm::Fcb::from_string("READ*.TXT", 0)));
+    assert(!fs.rename(plain, cpm22::cpm::Fcb::from_string("README.T*X", 0)));
     assert(fs.open(plain));
     assert(fs.rename(plain, cpm22::cpm::Fcb::from_string("NOTES", 0)));
     assert(!fs.open(plain));
