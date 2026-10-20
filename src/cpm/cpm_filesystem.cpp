@@ -113,7 +113,7 @@ bool CpmFilesystem::open(const Fcb& fcb, Fcb* opened) const {
 
     const auto trim = [](const auto& field) {
         std::string value(field.begin(), field.end());
-        while (!value.empty() && (value.back() == ' ' || value.back() == '\\0')) {
+        while (!value.empty() && (value.back() == ' ' || value.back() == '\0')) {
             value.pop_back();
         }
         return value;
@@ -124,8 +124,8 @@ bool CpmFilesystem::open(const Fcb& fcb, Fcb* opened) const {
     for (const auto& entry : entries) {
         std::string entry_name = entry.name;
         std::string entry_ext = entry.extension;
-        while (!entry_name.empty() && (entry_name.back() == ' ' || entry_name.back() == '\\0')) entry_name.pop_back();
-        while (!entry_ext.empty() && (entry_ext.back() == ' ' || entry_ext.back() == '\\0')) entry_ext.pop_back();
+        while (!entry_name.empty() && (entry_name.back() == ' ' || entry_name.back() == '\0')) entry_name.pop_back();
+        while (!entry_ext.empty() && (entry_ext.back() == ' ' || entry_ext.back() == '\0')) entry_ext.pop_back();
 
         if (entry.user != kUnused && entry.user == fcb.user &&
             requested_name == entry_name && requested_ext == entry_ext) {
@@ -152,7 +152,7 @@ bool CpmFilesystem::remove(const Fcb& fcb) {
 namespace {
 std::string trim_fcb_field(const auto& field) {
     std::string value(field.begin(), field.end());
-    while (!value.empty() && (value.back() == ' ' || value.back() == '\\0')) {
+    while (!value.empty() && (value.back() == ' ' || value.back() == '\0')) {
         value.pop_back();
     }
     return value;
@@ -347,7 +347,7 @@ bool CpmFilesystem::matches(const Fcb& pattern, const CpmDirectoryRecord& entry)
     // FCB matching is exact; wildcard fields are matched as glob patterns.
     const auto trim_field = [](const auto& field) {
         std::string value(field.begin(), field.end());
-        while (!value.empty() && (value.back() == ' ' || value.back() == '\\0')) {
+        while (!value.empty() && (value.back() == ' ' || value.back() == '\0')) {
             value.pop_back();
         }
         return value;
