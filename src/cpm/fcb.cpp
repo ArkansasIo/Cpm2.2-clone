@@ -3,6 +3,25 @@
 
 namespace cpm22::cpm {
 
+bool Fcb::is_valid_filename(const std::string& value) noexcept {
+    if (value.empty()) return false;
+    const auto dot = value.find('.');
+    if (dot != std::string::npos && value.find('.', dot + 1) != std::string::npos) return false;
+    const std::string name = value.substr(0, dot);
+    const std::string ext = dot == std::string::npos ? std::string{} : value.substr(dot + 1);
+    if (name.empty() || name.size() > 8 || ext.size() > 3) return false;
+    const auto valid_chars = [](const std::string& part) {
+        for (unsigned char c : part) {
+            if (c <= 0x20 || c >= 0x7F || c == '*' || c == '?' ||
+                c == '/' || c == '\\\\' || c == ':' || c == ';' ||
+                c == ',' || c == '[' || c == ']' || c == '=' ||
+                c == '<' || c == '>' || c == '|') return false;
+        }
+        return true;
+    };
+    return valid_chars(name) && valid_chars(ext);
+}
+
 Fcb Fcb::from_string(const std::string& value, std::uint8_t user_id) {
     Fcb f;
     f.user = user_id;
