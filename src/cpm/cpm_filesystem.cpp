@@ -111,17 +111,6 @@ bool CpmFilesystem::open(const Fcb& fcb, Fcb* opened) const {
     std::vector<CpmDirectoryRecord> entries;
     if (!read_directory(entries)) return false;
 
-    // A regular open accepts a concrete filename, not a search pattern.
-    // Comparing canonical trimmed fields prevents '*' expansion from making
-    // short names match longer names while preserving case-insensitivity.
-    const auto requested_name = trim_fcb_field(fcb.name);
-    const auto requested_ext = trim_fcb_field(fcb.extension);
-    if (requested_name.empty() ||
-        requested_name.find_first_of("*?") != std::string::npos ||
-        requested_ext.find_first_of("*?") != std::string::npos) {
-        return false;
-    }
-
     for (const auto& entry : entries) {
         if (entry.user != kUnused && entry.user == fcb.user &&
             exact_fcb_name_matches(fcb, entry)) {
