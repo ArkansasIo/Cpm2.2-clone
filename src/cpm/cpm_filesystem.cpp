@@ -317,25 +317,18 @@ bool CpmFilesystem::search(const Fcb& pattern, std::vector<Fcb>& results) const 
 bool CpmFilesystem::matches(const Fcb& pattern, const CpmDirectoryRecord& entry) {
     const auto candidate = to_fcb(entry);
     const auto field_matches = [](const auto& pattern_field, const auto& candidate_field) {
-        bool wildcard = false;
         for (std::size_t i = 0; i < pattern_field.size(); ++i) {
             const char p = pattern_field[i];
             const char c = candidate_field[i];
 
-            if (p == '*') {
-                // CP/M '*' matches the rest of this field, including blank
-                // padding. It is not a literal character stored in a name.
-                wildcard = true;
-                break;
-            }
+            if (p == '*') return true;
             if (p == '?') {
                 if (c == ' ' || c == '\\0') return false;
                 continue;
             }
             if (p == ' ' || p == '\\0') {
-                // Once the pattern reaches blank padding, the candidate must
-                // also be padded. This prevents short names from prefix
-                // matching longer names such as FOO and FOOBA.
+                // A blank-padded pattern must match a blank-padded candidate;
+                // otherwise short names would prefix-match longer names.
                 for (std::size_t j = i; j < pattern_field.size(); ++j) {
                     if (pattern_field[j] != ' ' && pattern_field[j] != '\\0') return false;
                 }
@@ -349,7 +342,7 @@ bool CpmFilesystem::matches(const Fcb& pattern, const CpmDirectoryRecord& entry)
                 return false;
             }
         }
-        return wildcard || true;
+        return true;
     };
 
     return field_matches(pattern.name, candidate.name) &&
