@@ -136,16 +136,6 @@ bool CpmFilesystem::rename(const Fcb& old_fcb, const Fcb& new_fcb) {
     std::vector<CpmDirectoryRecord> entries;
     if (!read_directory(entries)) return false;
 
-    // CP/M stores the 8-character name and 3-character extension in
-    // separate fixed-width directory fields. Compare the replacement using
-    // those fields, then update only the entry's name and extension.
-    for (const auto& entry : entries) {
-        if (entry.user != kUnused && entry.user == new_fcb.user &&
-            matches(new_fcb, entry)) {
-            return false;
-        }
-    }
-
     const auto replacement = new_fcb.filename();
     const auto dot = replacement.find('.');
     const auto base_name = replacement.substr(0, dot);
@@ -158,16 +148,30 @@ bool CpmFilesystem::rename(const Fcb& old_fcb, const Fcb& new_fcb) {
         return false;
     }
 
+    // Locate the source first. A rename to the same canonical name is a
+    // successful no-op; otherwise reject an existing destination.
+    std::size_t source_index = entries.size();
     for (std::size_t i = 0; i < entries.size(); ++i) {
-        auto& entry = entries[i];
-        if (entry.user != kUnused && entry.user == old_fcb.user &&
-            matches(old_fcb, entry)) {
-            entry.name = base_name;
-            entry.extension = extension;
-            return save_entry(i, entry);
+        if (entries[i].user != kUnused && entries[i].user == old_fcb.user &&
+            matches(old_fcb, entries[i])) {
+            source_index = i;
+            break;
         }
     }
-    return false;
+    if (source_index == entries.size()) return false;
+
+    for (std::size_t i = 0; i < entries.size(); ++i) {
+        const auto& entry = entries[i];
+        if (i != source_index && entry.user != kUnused &&
+            entry.user == new_fcb.user && matches(new_fcb, entry)) {
+            return false;
+        }
+    }
+
+    auto& source = entries[source_index];
+    source.name = base_name;
+    source.extension = extension;
+    return save_entry(source_index, source);
 }
 
 bool CpmFilesystem::clear_entry(std::size_t index) {
