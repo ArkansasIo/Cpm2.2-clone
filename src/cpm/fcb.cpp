@@ -12,9 +12,8 @@ Fcb Fcb::from_string(const std::string& value, std::uint8_t user_id) {
     auto n = value.substr(0, dot);
     auto e = dot == std::string::npos ? std::string{} : value.substr(dot + 1);
 
-    // CP/M FCB names are fixed-width fields and support '?' and '*' wildcards.
-    // Expand '*' to the remaining field width so filename() and directory
-    // matching preserve classic 8.3 wildcard semantics.
+    // CP/M FCB names are fixed-width fields. Expand '*' to the remaining
+    // field width using '?' wildcards; '?' matches one non-padding character.
     const auto normalize_field = [](std::string field, std::size_t width) {
         for (auto& c : field)
             c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
