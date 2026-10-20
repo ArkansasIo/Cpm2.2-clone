@@ -174,14 +174,9 @@ bool CpmFilesystem::rename(const Fcb& old_fcb, const Fcb& new_fcb) {
     }
     if (source_index == entries.size()) return false;
 
-    for (std::size_t i = 0; i < entries.size(); ++i) {
-        if (i != source_index && entries[i].user != kUnused &&
-            entries[i].user == new_fcb.user &&
-            exact_fcb_name_matches(new_fcb, entries[i])) {
-            return false;
-        }
-    }
-
+    // CP/M rename calls conventionally provide the replacement filename in
+    // the new FCB's filename bytes, but the old FCB's user/disk context
+    // identifies the directory entry to update.
     auto& source = entries[source_index];
     source.name = replacement_name;
     source.extension = replacement_ext;
