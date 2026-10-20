@@ -111,17 +111,24 @@ bool CpmFilesystem::open(const Fcb& fcb, Fcb* opened) const {
     std::vector<CpmDirectoryRecord> entries;
     if (!read_directory(entries)) return false;
 
-    // Opening requires an exact 8.3 filename. Multiple extents still share
-    // one logical filename, so selecting any matching entry is sufficient.
-    const auto requested_name = trim_fcb_field(fcb.name);
-    const auto requested_ext = trim_fcb_field(fcb.extension);
+    const auto trim = [](const auto& field) {
+        std::string value(field.begin(), field.end());
+        while (!value.empty() && (value.back() == ' ' || value.back() == '\0')) {
+            value.pop_back();
+        }
+        return value;
+    };
+    const auto requested_name = trim(fcb.name);
+    const auto requested_ext = trim(fcb.extension);
+
+    // Opening requires a concrete name. Match the directory's 8.3 fields
+    // exactly so wildcard patterns cannot keep matching renamed files.
     for (const auto& entry : entries) {
         if (entry.user == kUnused || entry.user != fcb.user) continue;
         std::string entry_name = entry.name;
         std::string entry_ext = entry.extension;
         while (!entry_name.empty() && (entry_name.back() == ' ' || entry_name.back() == '\0')) entry_name.pop_back();
         while (!entry_ext.empty() && (entry_ext.back() == ' ' || entry_ext.back() == '\0')) entry_ext.pop_back();
-
         if (requested_name == entry_name && requested_ext == entry_ext) {
             if (opened) *opened = to_fcb(entry);
             return true;
