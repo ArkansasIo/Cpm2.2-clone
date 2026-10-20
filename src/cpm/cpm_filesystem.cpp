@@ -168,9 +168,6 @@ bool CpmFilesystem::rename(const Fcb& old_fcb, const Fcb& new_fcb) {
     std::vector<CpmDirectoryRecord> entries;
     if (!read_directory(entries)) return false;
 
-    // FCB::from_string stores values in fixed-width fields. Reject overlong
-    // source strings before the parser truncates them, and validate the
-    // canonical replacement fields before touching any directory entries.
     const auto replacement_name = trim_fcb_field(new_fcb.name);
     const auto replacement_ext = trim_fcb_field(new_fcb.extension);
     if (replacement_name.empty() || replacement_name.size() > 8 ||
@@ -180,9 +177,9 @@ bool CpmFilesystem::rename(const Fcb& old_fcb, const Fcb& new_fcb) {
         return false;
     }
 
-    // A CP/M file may occupy several directory entries because each extent
-    // has its own entry. Collect every extent belonging to the old 8.3 name
-    // so a rename changes the file as a whole instead of only its first part.
+    // A multi-extent file uses multiple directory entries with the same 8.3
+    // name. Rename every entry so later extents do not remain under the old
+    // filename.
     std::vector<std::size_t> source_indices;
     for (std::size_t i = 0; i < entries.size(); ++i) {
         if (entries[i].user != kUnused && entries[i].user == old_fcb.user &&
@@ -192,8 +189,6 @@ bool CpmFilesystem::rename(const Fcb& old_fcb, const Fcb& new_fcb) {
     }
     if (source_indices.empty()) return false;
 
-    // Reject an existing destination unless it is the same file being
-    // renamed (which is a harmless no-op).
     const auto is_source = [&source_indices](std::size_t index) {
         return std::find(source_indices.begin(), source_indices.end(), index) != source_indices.end();
     };
@@ -209,15 +204,13 @@ bool CpmFilesystem::rename(const Fcb& old_fcb, const Fcb& new_fcb) {
         if (entry_name == replacement_name && entry_ext == replacement_ext) return false;
     }
 
-    bool changed = false;
     for (const auto index : source_indices) {
         auto& source = entries[index];
         source.name = replacement_name;
         source.extension = replacement_ext;
         if (!save_entry(index, source)) return false;
-        changed = true;
     }
-    return changed;
+    return true;
 }
 
 bool CpmFilesystem::clear_entry(std::size_t index) {
