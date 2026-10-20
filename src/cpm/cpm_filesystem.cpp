@@ -11,6 +11,12 @@ constexpr std::size_t kDirectoryEntrySize = 32;
 constexpr std::size_t kRecordsPerExtent = 128;
 constexpr std::uint8_t kUnused = 0xE5;
 
+std::string trim_local_field(const auto& field) {
+    std::string value(field.begin(), field.end());
+    while (!value.empty() && (value.back() == ' ' || value.back() == '\0')) value.pop_back();
+    return value;
+}
+
 std::size_t extent_record_count(const CpmDirectoryRecord& entry) noexcept {
     if (entry.record_count != 0) return entry.record_count;
     for (const auto block : entry.allocation) {
@@ -154,8 +160,8 @@ bool exact_fcb_name_matches(const Fcb& fcb, const CpmDirectoryRecord& entry) {
     std::string entry_ext = entry.extension;
     while (!entry_name.empty() && entry_name.back() == ' ') entry_name.pop_back();
     while (!entry_ext.empty() && entry_ext.back() == ' ') entry_ext.pop_back();
-    return trim_fcb_field(fcb.name) == entry_name &&
-           trim_fcb_field(fcb.extension) == entry_ext;
+    return trim_local_field(fcb.name) == entry_name &&
+           trim_local_field(fcb.extension) == entry_ext;
 }
 }
 
