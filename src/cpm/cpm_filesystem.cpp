@@ -135,14 +135,36 @@ bool CpmFilesystem::remove(const Fcb& fcb) {
 bool CpmFilesystem::rename(const Fcb& old_fcb, const Fcb& new_fcb) {
     std::vector<CpmDirectoryRecord> entries;
     if (!read_directory(entries)) return false;
-    for (const auto& e : entries) if (e.user != kUnused && e.user == new_fcb.user && matches(new_fcb, e)) return false;
+
+    // CP/M stores the 8-character name and 3-character extension in
+    // separate fixed-width directory fields. Compare the replacement using
+    // those fields, then update only the entry's name and extension.
+    for (const auto& entry : entries) {
+        if (entry.user != kUnused && entry.user == new_fcb.user &&
+            matches(new_fcb, entry)) {
+            return false;
+        }
+    }
+
+    const auto replacement = new_fcb.filename();
+    const auto dot = replacement.find('.');
+    const auto base_name = replacement.substr(0, dot);
+    const auto extension =
+        dot == std::string::npos ? std::string{} : replacement.substr(dot + 1);
+
+    // Enforce CP/M 8.3 bounds instead of writing oversized values into the
+    // fixed-width directory entry.
+    if (base_name.empty() || base_name.size() > 8 || extension.size() > 3) {
+        return false;
+    }
+
     for (std::size_t i = 0; i < entries.size(); ++i) {
-        if (entries[i].user != kUnused && entries[i].user == old_fcb.user && matches(old_fcb, entries[i])) {
-            const auto filename = new_fcb.filename();
-            const auto dot = filename.find('.');
-            entries[i].name = dot == std::string::npos ? filename : filename.substr(0, dot);
-            entries[i].extension = dot == std::string::npos ? std::string{} : filename.substr(dot + 1);
-            return save_entry(i, entries[i]);
+        auto& entry = entries[i];
+        if (entry.user != kUnused && entry.user == old_fcb.user &&
+            matches(old_fcb, entry)) {
+            entry.name = base_name;
+            entry.extension = extension;
+            return save_entry(i, entry);
         }
     }
     return false;
