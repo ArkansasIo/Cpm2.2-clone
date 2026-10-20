@@ -113,16 +113,13 @@ bool CpmFilesystem::open(const Fcb& fcb, Fcb* opened) const {
 
     const auto trim = [](const auto& field) {
         std::string value(field.begin(), field.end());
-        while (!value.empty() && (value.back() == ' ' || value.back() == '\0')) {
-            value.pop_back();
-        }
+        while (!value.empty() && (value.back() == ' ' || value.back() == '\0')) value.pop_back();
         return value;
     };
     const auto requested_name = trim(fcb.name);
     const auto requested_ext = trim(fcb.extension);
 
-    // Opening requires a concrete name. Match the directory's 8.3 fields
-    // exactly so wildcard patterns cannot keep matching renamed files.
+    // Opening requires a concrete name, unlike search which accepts wildcards.
     for (const auto& entry : entries) {
         if (entry.user == kUnused || entry.user != fcb.user) continue;
         std::string entry_name = entry.name;
@@ -166,8 +163,13 @@ bool CpmFilesystem::rename(const Fcb& old_fcb, const Fcb& new_fcb) {
     std::vector<CpmDirectoryRecord> entries;
     if (!read_directory(entries)) return false;
 
-    const auto replacement_name = trim_fcb_field(new_fcb.name);
-    const auto replacement_ext = trim_fcb_field(new_fcb.extension);
+    const auto trim_field = [](const auto& field) {
+        std::string value(field.begin(), field.end());
+        while (!value.empty() && (value.back() == ' ' || value.back() == '\0')) value.pop_back();
+        return value;
+    };
+    const auto replacement_name = trim_field(new_fcb.name);
+    const auto replacement_ext = trim_field(new_fcb.extension);
     if (replacement_name.empty() || replacement_name.size() > 8 ||
         replacement_ext.size() > 3 ||
         replacement_name.find_first_of("*?") != std::string::npos ||
